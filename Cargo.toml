@@ -1,0 +1,10 @@
+[package]
+name = "ethos-core"
+version = "0.0.0"
+edition = "2024"
+authors = ["NickelAnge.Studio <rust@nickelange.studio>"]
+description = "Ethos Core components"
+license = "MIT"
+repository = "https://github.com/NickelAngeStudio/nswindow"
+
+[dependencies]

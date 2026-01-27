@@ -22,6 +22,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+/// Messages
+pub mod msg;
+
+/// Errors
+pub mod error;
+
 /// Ethos TCP port is 3847 ('eths' on a phone keyboard)
 pub const ETHOS_TCP_PORT : u16 = 3847;
 

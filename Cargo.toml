@@ -5,6 +5,6 @@ edition = "2024"
 authors = ["NickelAnge.Studio <rust@nickelange.studio>"]
 description = "Ethos Core components"
 license = "MIT"
-repository = "https://github.com/NickelAngeStudio/nswindow"
+repository = "https://github.com/NickelAngeStudio/ethos-core"
 
 [dependencies]

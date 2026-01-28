@@ -15,5 +15,4 @@ pub enum EthosError {
 
     /// Happens when server or client received an invalid payload size.
     InvalidPayloadSize,
-
 }

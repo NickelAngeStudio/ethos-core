@@ -1,17 +1,73 @@
 use std::vec;
 
-use crate::error::EthosError;
+use crate::error::{EthosError, EthosErrorDiscriminantSize};
 
-/// Size of the discriminant that match each payload enum 
+macro_rules! write_payloads {
+    ( $( $(#[$attr:meta])* $payload : ident $({ $($pname : ident : $ptype : ty),* })? = $value:expr),+ ) => {
+
+        /// Union of possible message payload
+        #[repr(u16)]
+        #[derive(Debug)]
+        pub enum EthosMessagePayload {
+            $(
+                $(
+                    #[$attr]
+                )*
+                $payload $({
+                    $(
+                        $pname : $ptype
+                    ),*
+                })? = $value,
+            )+
+        }
+
+        impl EthosMessagePayload {
+
+
+        }
+
+
+
+    };
+
+
+}
+
+write_payloads!{
+    /// No payload
+    None = 0,
+    
+    /// Action : enum, character, value, value
+    Action {a : u16, b : u32, c : u32, d : u32 } = 1,
+
+    /// An error message
+    Error { err : MessageErrorSize } = 65535
+}
+
+/// Macro that read a buffer inline
+macro_rules! read_buffer {
+    ($t : ty, $bytes : expr, $start : expr) => {
+        {
+            let mut buf = [0 as u8; size_of::<$t>()];
+            buf.copy_from_slice(&$bytes[ $start.. $start + size_of::<$t>()]);
+            <$t>::from_le_bytes(buf)
+        }
+
+    };
+
+}
+
+/// Type of the discriminant that match each payload enum 
 /// 
 /// Note
 /// Max 65535 enum, make u32 if not enough 
-pub type PayloadDiscriminantSize = u16;
+pub type PayloadDiscriminantType = u16;
+
  
 /// Allow up to u32::MAX message of error
 pub type MessageErrorSize = u32;
 
-
+/*
 /// Union of possible message payload
 #[repr(u16)]
 #[derive(Debug)]
@@ -26,7 +82,7 @@ pub enum EthosMessagePayload {
 
 impl EthosMessagePayload {
     #[cfg(test)]
-    pub fn create_empty(discriminant : PayloadDiscriminantSize) -> EthosMessagePayload {
+    pub fn create_empty(discriminant : PayloadDiscriminantType) -> EthosMessagePayload {
         match discriminant {
             1 => Self::Action(0, 0, 0, 0),
             65535 => Self::Error(0),
@@ -38,8 +94,8 @@ impl EthosMessagePayload {
     /// 
     /// Ref
     /// https://doc.rust-lang.org/std/mem/fn.discriminant.html
-    pub fn discriminant(&self) -> PayloadDiscriminantSize {
-        unsafe { *(self as *const Self as *const PayloadDiscriminantSize)}
+    pub fn discriminant(&self) -> PayloadDiscriminantType {
+        unsafe { *(self as *const Self as *const PayloadDiscriminantType)}
     }
 
     /// Pack message into a vector of bytes in little-endian byte order.
@@ -80,8 +136,8 @@ impl EthosMessagePayload {
         */
     }
 
-    const fn size_of_bytes_from_discriminant(discriminant : PayloadDiscriminantSize) -> usize {
-        size_of::<PayloadDiscriminantSize>() + 
+    const fn size_of_bytes_from_discriminant(discriminant : PayloadDiscriminantType) -> usize {
+        size_of::<PayloadDiscriminantType>() + 
         match discriminant {
             1 =>  size_of::<u16>() + size_of::<u32>() + size_of::<u32>() + size_of::<u32>(),
             65535 =>  size_of::<MessageErrorSize>(),
@@ -94,20 +150,27 @@ impl EthosMessagePayload {
     /// 
     /// Returns 
     /// Ok(EthosMessagePayload) if succesfull
-    /// Err()
-    /// Err()
+    /// Err(InvalidPayloadType) if payload type is unknown
+    /// Err(InvalidPayloadSize) if payload size doesnt match given buffer size
     pub fn from_bytes(bytes : &[u8], size : usize) -> Result<EthosMessagePayload, EthosError> {
 
         // Read discriminant
-        let discriminant : PayloadDiscriminantSize = 0;
+        let discriminant = read_buffer!(PayloadDiscriminantType, bytes, 0); 
 
         // Validate size of buffer
             if EthosMessagePayload::size_of_bytes_from_discriminant(discriminant) == size {
 
                 match discriminant {
                     0 => Ok(EthosMessagePayload::None),
-                    1 => Ok(EthosMessagePayload::Action(0, 1, 2, 3)), // TODO : Read action buffer
-                    65535 => Ok(EthosMessagePayload::Error(0)),
+                    1 => Ok(EthosMessagePayload::Action(
+                        read_buffer!(u16, bytes, size_of::<PayloadDiscriminantType>()), 
+                        read_buffer!(u32, bytes, size_of::<PayloadDiscriminantType>() + size_of::<u16>()), 
+                        read_buffer!(u32, bytes, size_of::<PayloadDiscriminantType>() + size_of::<u16>() + size_of::<u32>()), 
+                        read_buffer!(u32, bytes, size_of::<PayloadDiscriminantType>() + size_of::<u16>() + size_of::<u32>() + size_of::<u32>())
+                    )), // TODO : Read bytes buffer
+                    65535 => Ok(EthosMessagePayload::Error(
+                        read_buffer!(MessageErrorSize, bytes, size_of::<PayloadDiscriminantType>())
+                    )),
                     _ =>  Err(EthosError::InvalidPayloadType) // Payload discriminant is invalid
                 }
 
@@ -131,6 +194,18 @@ impl EthosMessagePayload {
     //}
     */
 }
+
+*/
+
+/*
+/// Shortcut function to read buffer
+#[inline(always)]
+const fn read_buffer<T : Default>(bytes : &[u8], start : usize) -> T {
+    let mut buf = [0 as u8, 0];
+    buf.copy_from_slice(&bytes[start..start + size_of::<T>()]);
+    T::from_le_bytes(buf)
+}
+    */
 
 #[cfg(test)]
 mod tests {
@@ -162,6 +237,32 @@ mod tests {
         for pl in payloads {
              println!("Payload={:?}, bytes={:?}", pl, pl.to_le_bytes());
         }
+
+    }
+
+    /// Create a payload from bytes and test parameters
+    #[test]
+    fn payload_action_from_bytes(){
+        let bytes = [1 as u8, 0, 255, 127, 255, 255, 255, 127, 255, 255, 255, 127, 255, 255, 255, 127];
+        
+        match EthosMessagePayload::from_bytes(&bytes, 16) {
+            Ok(payload) => {
+                match payload {
+                    EthosMessagePayload::Action(a, b, c, d) => {
+                        assert_eq!(a, 32767);
+                        assert_eq!(b, 2147483647);
+                        assert_eq!(c, 2147483647);
+                        assert_eq!(d, 2147483647);
+                    },
+                    _ => panic!("Wrong payload type!"),
+                }
+            },
+            Err(err) => panic!("Couldnt create payload action from bytes! Err={:?}", err),
+        }
+
+        
+
+
 
     }
 

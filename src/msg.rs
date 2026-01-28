@@ -1,7 +1,30 @@
-use crate::error::EthosCoreNetError;
+use std::{io::Read, time::Duration};
+
+use crate::{error::EthosError, payload::EthosMessagePayload};
 
 // TODO: Automate via macros
 
+/// Message sent between client and server
+pub struct EthosMessage {
+
+    /// Size of the message including payload
+    size : u16,
+
+    /// Type of message
+    msg_type : u16,
+
+    /// Special shared key used to validate message
+    key  :u128,
+
+    /// Timestamp of the message (usually in sync with server)
+    timestamp : u64,
+
+    /// Payload of the message
+    payload : EthosMessagePayload,
+
+}
+
+/*
 /// Possible types of message sent between client and server
 #[repr(u16)]
 pub enum NetMessageType {
@@ -43,16 +66,30 @@ pub enum NetMessagePayload {
 
 impl NetMessage {
 
-    pub const fn from_bytes(bytes: &[u8]) -> Result<NetMessage, EthosCoreNetError>{
+    pub const fn from_bytes(bytes: &Vec<u8>) -> Result<NetMessage, EthosCoreNetError>{
+        let aa = bytes[0];
+        let aa = <&[u8; 2]>::try_from(&bytes[0..2]);
 
-        match <&[u8; 2]>::try_from(bytes) {
-
-        } // bytes[0..2] u16::from_le_bytes(bytes.);
-
-        match NetMessageType::from_bytes(bytes[0..2]){
+        match NetMessageType::from_bytes(<&[u8; 2]>::try_from(bytes[0..2])) {
             Ok(_) => todo!(),
-            Err(_) => todo!(),
+            Err(_) => Err(EthosCoreNetError::ECNetErrorInvalidNetMessageType),  // Invalid message type
         }
+
+
+        let aa = <&[u8; 2]>::try_from(bytes[0..2]);
+        match <&[u8; 2]>::try_from(bytes) {
+            Ok(msg_type) => {
+                match NetMessageType::from_bytes(msg_type) {
+                    Ok(_) => todo!(),
+                    Err(_) => Err(EthosCoreNetError::ECNetErrorInvalidNetMessageType),  // Invalid message type
+                }
+
+            },
+            Err(_) => { // Malformed message
+                Err(EthosCoreNetError::ECNetErrorInvalidNetMessage)
+            }
+        } 
+
     }
 
 
@@ -63,20 +100,47 @@ impl NetMessage {
 
    
 }
+*/
 
 #[cfg(test)]
 mod tests {
-    use crate::msg::NetMessageType;
+
+    /*
+    use crate::msg::{self, EthosMessage, EthosMessageType};
+
+      #[test]
+    fn message_to_bytes() {
+        let msg = EthosMessage::Action(8, 12, 12, 12);
+
+        println!("Test={:?}", msg.to_bytes());
+
+        let msg = EthosMessage::Error(crate::error::EthosCoreNetError::ECNetErrorInvalidNetMessage);
+
+        println!("Test={:?}", msg.to_bytes());
+    }
 
 
      #[test]
     fn create_message_from_bytes() {
-        let bytes =  [0 as u8,1,1,1];
-    
-        let b2 = &bytes[0..1];
-        let test = u16::from_le_bytes(<[u8; 2]>::try_from(&bytes[0..std::mem::size_of::<NetMessageType>()]).unwrap());
+        let msg1 = [1 as u8, 0, 8, 0, 12, 0, 0, 0, 12, 0, 0, 0, 12, 0, 0, 0];
+        let msg2 = [0 as u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 222, 196, 170, 85];
+        let msg3 = [10 as u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 222, 196, 170, 85];
 
-        println!("Test={}", test)
+        
+    
+        match EthosMessage::from_bytes(&msg3){
+                Ok(msg) => {
+                    println!("MSG={:?}", msg);
+                    match msg {
+                    EthosMessage::Error(ethos_core_net_error) => panic!("WRONG"),
+                    EthosMessage::Action(a,b_, c, d) => assert_eq!(*a, 8),
+                    _ => panic!("WTFF!!")
+                }
+            },
+            Err(_) => todo!(),
+        }
+
     }
+    */
 
 }

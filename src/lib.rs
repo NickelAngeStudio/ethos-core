@@ -22,11 +22,25 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+
+
 /// Messages
 pub mod msg;
 
+/// Payload of message
+pub mod payload;
+
 /// Errors
 pub mod error;
+
+/// Size of a messagetype in bytes
+//pub const ETHOS_NET_MSG_TYPE_SIZE : usize = std::mem::size_of::<NetMessageType>();
+
+/// Size of a message in bytes
+//pub const ETHOS_NET_MSG_SIZE : usize = std::mem::size_of::<NetMessage>(); // ETHOS_NET_MSG_TYPE_SIZE + std::mem::size_of::<NetMessage>();
+
+/// Recommended buffer size to read datas (1mb)
+pub const ETHOS_NET_BUFFER_SIZE : usize = 1024*1024;
 
 /// Ethos TCP port is 3847 ('eths' on a phone keyboard)
 pub const ETHOS_TCP_PORT : u16 = 3847;

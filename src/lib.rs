@@ -25,13 +25,7 @@ SOFTWARE.
 //! Ethos-Core contains the objects necessary for communication between
 //! ethos-server and ethos-client.
 
-#[doc(hidden)]
-pub mod error;
 
 pub mod net;
-
-
-// Re-export
-pub use error::EthosError as EthosError;
 
 

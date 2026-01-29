@@ -22,20 +22,27 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-//! Union of possible message payload
+//! Message content communicated between client and server.
 
 use tampon::Tampon;
 
+// IMPORTANT : Add a unique u16 value to each new payload.
 crate::write_messages_payloads!{
     /// Key used to authenticate with server
-    Key { key : u128 } = 0,
-    
-    /// Action : enum, character, value, value
-    Action {a : u16, b : u32, c : u32, d : u32 } = 1,
+    Key { 
+        /// Secret key shared between client and server to establish connection. 
+        /// 
+        /// # Notes
+        /// Server will ban client for 15m upon providing incorrect key. 
+        key : u128 
+    } = 0,
 
-    /// An error message
-    Error { err : u32 } = 65534,
+    /// An error message sent by the server to the client.
+    Error {
+        /// Possible error index according to the server error chart. 
+        err : u32 
+    } = 65534,
 
-    /// Invalid payload
+    /// Invalid or malformed payload that should be discarded.
     Invalid = 65535
 }

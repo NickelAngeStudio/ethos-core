@@ -23,44 +23,58 @@ SOFTWARE.
 */
 
 
-use crate::{EthosError, net::Payload};
+use crate::net::{ Error, Payload };
 use tampon::Tampon;
 
-/// Message sent between client and server 
+/// Message sent between client and server.
+/// 
+/// Messages are the only form of communication used between client and server over TCP and UDP connection.
 pub struct Message {
 
-    /// Packed size of the message including payload
+    /// Packed size of the message including payload.
     pub size : u16,
 
-    /// Timestamp of the message in milliseconds
+    /// Timestamp of the message in milliseconds.
     /// 
-    /// - Use [Instant](std::time::Instant) with [Duration](std::time::Duration) to fill.
+    /// - Use [Instant](std::time::Instant) and [Duration](std::time::Duration) value to fill.
     /// - DO NOT USE [std::time::SystemTime] since it is not monotonic.
     pub timestamp : u64,
 
-    /// Payload of the message
+    /// Message content sent between client and server.
     pub payload : Payload,
 
 }
 
 impl Message {
 
-    /// Create a new [Message] from timestamp and payload
+    /// Create a new `Message` from timestamp and [Payload].
+    /// 
+    /// # Returns
+    /// `Message` from timestamp and payload with size.
     pub fn new(timestamp : u64, payload : Payload) -> Message {
         Message { size: size_of::<u16>() as u16 + size_of::<u64>() as u16 + payload.bytes_size() as u16, timestamp, payload }
     }
 
-    /// Pack the [Message] in little-endian bytes in a given buffer
+    /// Pack the [Message] in little-endian bytes in a given buffer.
     /// 
-    /// Panic
-    /// Will panic if buffer size is smaller than [Message::size]
+    /// Make sure to use a buffer with at least [PACK_BUFFER_SIZE](super::PACK_BUFFER_SIZE) bytes.
+    /// 
+    /// # Panics
+    /// Will panic if buffer is too small to contain the message.
     pub fn pack_bytes(&self, buffer : &mut [u8]) -> usize {
         tampon::serialize!(buffer, (self.size):u16, (self.timestamp):u64, (self.payload):Payload);
         self.size as usize
     }
 
     /// Extract a message from an array of bytes. 
-    pub fn from_bytes(bytes : &[u8]) -> Result<Message, EthosError> {
+    /// 
+    /// # Returns
+    /// [`Result`] which is:
+    /// - [`Ok`]: [`Message`] properly extracted from bytes.
+    /// - [`Err`]:
+    ///     1. [`Error::InvalidMessage`] for malformed `Message`.
+    ///     2. [`Error::InvalidBufferSize`] for buffer too short to read `Message` entirely.
+    pub fn from_bytes(bytes : &[u8]) -> Result<Message, Error> {
 
         tampon::deserialize!(bytes, (size):u16);
 
@@ -70,12 +84,12 @@ impl Message {
             tampon::deserialize!(bytes[std::mem::size_of::<u16>()..], (timestamp):u64, (payload):Payload);
 
             if let Payload::Invalid = payload { // Message received is invalid
-                Err(EthosError::InvalidNetMessage)
+                Err(Error::InvalidMessage)
             } else {
                 Ok(Message { size, timestamp, payload })
             }
         } else {
-            Err(EthosError::InvalidNetMessageSize)
+            Err(Error::InvalidBufferSize)
         }
         
     }

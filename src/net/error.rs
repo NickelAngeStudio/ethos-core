@@ -23,13 +23,19 @@ SOFTWARE.
 */
 
 
-/// Enumeration of possible errors
+/// Possible communication errors.
 #[derive(Debug)]
 #[repr(u16)]
-pub enum EthosError {
-    /// Happens when server or client received an invalid message.
-    InvalidNetMessage = 1,
+pub enum Error {
+    /// Server or client received an invalid / malformed message.
+    /// 
+    /// # Solution
+    /// Invalid / Malformed message should be dropped.
+    InvalidMessage = 1,
 
-    /// Happens when given buffer size is too small vs the message to read 
-    InvalidNetMessageSize = 2,
+    /// Happens when given buffer is too small to read a message.
+    /// 
+    /// # Solution
+    /// Use [PACK_BUFFER_SIZE](super::PACK_BUFFER_SIZE) when creating buffer.
+    InvalidBufferSize = 2,
 }

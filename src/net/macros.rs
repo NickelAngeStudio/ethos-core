@@ -30,9 +30,11 @@ SOFTWARE.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! write_messages_payloads {
-    ( $( $(#[$attr:meta])* $payload : ident $({ $($pname : ident : $ptype : ident),* })? = $value:expr),+ ) => {
+    ( $( $(#[$attr:meta])* $payload : ident $({ $( $(#[$attr_field:meta])* $pname : ident : $ptype : ident),* })? = $value:expr),+ ) => {
 
-        /// Union of possible message payload
+        /// Message content sent between client and server.
+        /// 
+        /// Payload are meant to be packed when sent and received.
         #[repr(u16)]
         #[derive(Debug, PartialEq)]
         pub enum Payload {
@@ -42,6 +44,9 @@ macro_rules! write_messages_payloads {
                 )*
                 $payload $({
                     $(
+                         $(
+                            #[$attr_field]
+                        )*
                         $pname : $ptype
                     ),*
                 })? = $value,

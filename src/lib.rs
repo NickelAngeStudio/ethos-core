@@ -22,6 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+use crate::msg::NetMessage;
+
 /// Macros
 mod macros;
 
@@ -34,14 +36,11 @@ pub mod payload;
 /// Errors
 pub mod error;
 
-/// Size of a messagetype in bytes
-//pub const ETHOS_NET_MSG_TYPE_SIZE : usize = std::mem::size_of::<NetMessageType>();
+/// Recommended buffer size (1mb) to read datas from net stream
+pub const ETHOS_READ_BUFFER_SIZE : usize = 1024*1024;
 
-/// Size of a message in bytes
-//pub const ETHOS_NET_MSG_SIZE : usize = std::mem::size_of::<NetMessage>(); // ETHOS_NET_MSG_TYPE_SIZE + std::mem::size_of::<NetMessage>();
-
-/// Recommended buffer size to read datas (1mb)
-pub const ETHOS_NET_BUFFER_SIZE : usize = 1024*1024;
+/// Recommended pack size to pack datas in a buffer for [NetMessage::pack_bytes]
+pub const ETHOS_MSG_PACK_BUFFER_SIZE : usize = size_of::<NetMessage>();
 
 /// Ethos TCP port is 3847 ('eths' on a phone keyboard)
 pub const ETHOS_TCP_PORT : u16 = 3847;

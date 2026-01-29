@@ -8,11 +8,5 @@ pub type EthosErrorDiscriminantSize = u16;
 #[repr(u16)]
 pub enum EthosError {
     /// Happens when server or client received an invalid message.
-    InvalidNetMessage = 0,
-
-    /// Happens when server or client received an invalid payload type.
-    InvalidPayloadType,
-
-    /// Happens when server or client received an invalid payload size.
-    InvalidPayloadSize,
+    InvalidNetMessage = 1,
 }

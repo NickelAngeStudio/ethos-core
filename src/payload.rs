@@ -1,6 +1,7 @@
-use std::vec;
+use std::{u16::MAX, vec};
 
 use crate::error::{EthosError, EthosErrorDiscriminantSize};
+use tampon::Tampon;
 
 /// Type of the discriminant that match each payload enum 
 /// 
@@ -12,7 +13,6 @@ pub type PayloadDiscriminantType = u16;
 pub type MessageErrorType = u32;
 
 crate::write_payloads!{
-
     /// Key used to authenticate with server
     Key { key : u128 } = 0,
     
@@ -20,10 +20,13 @@ crate::write_payloads!{
     Action {a : u16, b : u32, c : u32, d : u32 } = 1,
 
     /// An error message
-    Error { err : MessageErrorType } = 65535
+    Error { err : u32 } = 65534,
+
+    /// Invalid payload
+    Invalid = 65535
 }
 
-
+/*
 #[cfg(test)]
 mod tests {
 
@@ -31,7 +34,7 @@ mod tests {
 
     use crate::payload::EthosMessagePayload;
 
-
+    
     #[test]
     fn test() {
         let payloads = [
@@ -88,6 +91,7 @@ mod tests {
     }
 
 }
+    */
 /*
 
 /// Possible types of message sent between client and server

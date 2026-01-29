@@ -1,24 +1,34 @@
+/* 
+Copyright (c) 2026  NickelAnge.Studio 
+Email               mathieu.grenier@nickelange.studio
+Git                 https://github.com/NickelAngeStudio/ethos-core
 
-/// Macro that read a buffer inline
-#[macro_export]
-macro_rules! read_buffer {
-    ($t : ty, $bytes : expr, $start : expr) => {
-        {
-            let mut buf = [0 as u8; size_of::<$t>()];
-            buf.copy_from_slice(&$bytes[ $start.. $start + size_of::<$t>()]);
-            <$t>::from_le_bytes(buf)
-        }
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-    };
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-}
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
 
 /// This macro generate payloads code for bytes serialization. This help adding new payload quickly.
 /// 
-/// TODO: Write tests generation
+/// TODO: Generate serialize/deserialize test for each payload type.
 #[macro_export]
 macro_rules! write_payloads {
-    ( $( $(#[$attr:meta])* $payload : ident $({ $($pname : ident : $ptype : ty),* })? = $value:expr),+ ) => {
+    ( $( $(#[$attr:meta])* $payload : ident $({ $($pname : ident : $ptype : ident),* })? = $value:expr),+ ) => {
 
         /// Union of possible message payload
         #[repr(u16)]
@@ -36,6 +46,66 @@ macro_rules! write_payloads {
             )+
         }
 
+        impl Tampon<EthosMessagePayload> for EthosMessagePayload {
+            fn bytes_size(&self) -> usize {
+                EthosMessagePayload::size_of_bytes_from_discriminant(self.discriminant())
+            }
+
+            fn serialize(&self, buffer : &mut [u8]) -> usize {
+
+                // Pack payload to bytes
+                match self {
+                    $(
+                        EthosMessagePayload::$payload $({
+                            $(
+                                $pname
+                            ),*
+                        })? => {
+                            tampon::serialize!(buffer, size_written, (self.discriminant()):u16
+                            $($(
+                                ,(*$pname):$ptype
+                            )*)?);
+                            size_written
+                        },
+                    )+
+                }
+
+            }
+
+            fn deserialize(buffer : &[u8]) -> (EthosMessagePayload, usize) {
+                
+                // Read discriminant
+                tampon::deserialize!(buffer, (discriminant):u16);
+
+                match discriminant {
+                    $(
+                        $value => {
+                            $(
+                                tampon::deserialize!(buffer[size_of::<PayloadDiscriminantType>()..], 
+                                    $(
+                                        ($pname):$ptype
+                                    ),* 
+                                );
+                            )?
+                            
+
+                            let pl = EthosMessagePayload::$payload $({
+                                $(
+                                    $pname
+                                ),*
+                            })?;
+                            let bs = pl.bytes_size();
+                            (pl, bs)
+
+                        },
+                    )+
+                    _ =>  (EthosMessagePayload::Invalid, 0) // Invalid payload
+                }
+
+
+            }
+        }
+
         impl EthosMessagePayload {
             /// Returns a value uniquely identifying the enum variant
             /// 
@@ -45,11 +115,7 @@ macro_rules! write_payloads {
                 unsafe { *(self as *const Self as *const PayloadDiscriminantType)}
             }
 
-            /// Get packed size of bytes
-            pub fn size_of_bytes(&self) -> usize {
-                EthosMessagePayload::size_of_bytes_from_discriminant(self.discriminant())
-            }
-
+            
             /// Get the packed payload size from the discriminant
             const fn size_of_bytes_from_discriminant(discriminant : PayloadDiscriminantType) -> usize {
                 size_of::<PayloadDiscriminantType>() + 
@@ -67,89 +133,6 @@ macro_rules! write_payloads {
                     _ => 0
                 }
             }
-
-            /// Pack message into a vector of bytes in little-endian byte order.
-            #[allow(unused)]
-            pub fn to_le_bytes(&self) -> Vec<u8> {
-                let mut bytes  = vec![0 ; self.size_of_bytes()];
-                let (mut start, mut end) : (usize, usize) = (0, 0);
-
-                // Write type to bytes
-                end += size_of::<PayloadDiscriminantType>();
-                bytes[start..end].copy_from_slice(&self.discriminant().to_le_bytes());
-                start = end;
-
-                // Pack payload to bytes
-                match self {
-                    $(
-                        EthosMessagePayload::$payload $({
-                            $(
-                                $pname
-                            ),*
-                        })? => {
-                            $($(
-                                end += size_of::<$ptype>();
-                                bytes[start..end].copy_from_slice(&$pname.to_le_bytes());
-                                start = end;
-                            )*)?
-                        },
-                    )+
-                }
-
-                bytes
-            }
-
-            /// Read bytes to create a [EthosMessagePayload] from buffer and size
-            /// 
-            /// Returns 
-            /// Ok(EthosMessagePayload) if succesfull
-            /// Err(InvalidPayloadType) if payload type is unknown
-            /// Err(InvalidPayloadSize) if payload size doesnt match given buffer size
-            #[allow(unused)]
-            pub fn from_bytes(bytes : &[u8]) -> Result<EthosMessagePayload, EthosError> {
-
-                // Start of index read
-                let mut start : usize = 0;
-
-                // Read discriminant
-                let discriminant = crate::read_buffer!(PayloadDiscriminantType, bytes, start); 
-                start += size_of::<PayloadDiscriminantType>();
-
-                // Validate size of buffer
-                if EthosMessagePayload::size_of_bytes_from_discriminant(discriminant) == bytes.len() {
-
-                    match discriminant {
-                        $(
-                            $value => {
-                                $(
-                                    $(
-                                        let $pname = crate::read_buffer!($ptype, bytes, start);
-                                        start += size_of::<$ptype>();
-                                    )* 
-                                )?
-
-                                Ok(EthosMessagePayload::$payload $({
-                                    $(
-                                        $pname
-                                    ),*
-                                })?)
-                            },
-                        )+
-                        _ =>  Err(EthosError::InvalidPayloadType) // Payload discriminant is invalid
-                    }
-
-                } else {
-                    Err(EthosError::InvalidPayloadSize) // Payload size doesn't match discriminant
-                }
-
-            }
-
-            
-
-
-
         }
     };
-
-
 }

@@ -22,28 +22,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use crate::msg::NetMessage;
+//! Ethos-Core contains the objects necessary for communication between
+//! ethos-server and ethos-client.
 
-/// Macros
-mod macros;
-
-/// Messages
-pub mod msg;
-
-/// Payload of message
-pub mod payload;
-
-/// Errors
+#[doc(hidden)]
 pub mod error;
 
-/// Recommended buffer size (1mb) to read datas from net stream
-pub const ETHOS_READ_BUFFER_SIZE : usize = 1024*1024;
+pub mod net;
 
-/// Recommended pack size to pack datas in a buffer for [NetMessage::pack_bytes]
-pub const ETHOS_MSG_PACK_BUFFER_SIZE : usize = size_of::<NetMessage>();
 
-/// Ethos TCP port is 3847 ('eths' on a phone keyboard)
-pub const ETHOS_TCP_PORT : u16 = 3847;
+// Re-export
+pub use error::EthosError as EthosError;
 
-/// Ethos UDP port is 38467 ('ethos' on a phone keyboard)
-pub const ETHOS_UDP_PORT : u16 = 38467;
+

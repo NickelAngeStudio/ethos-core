@@ -22,14 +22,20 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+//! Union of possible message payload
 
-/// Enumeration of possible errors
-#[derive(Debug)]
-#[repr(u16)]
-pub enum EthosError {
-    /// Happens when server or client received an invalid message.
-    InvalidNetMessage = 1,
+use tampon::Tampon;
 
-    /// Happens when given buffer size is too small vs the message to read 
-    InvalidNetMessageSize = 2,
+crate::write_messages_payloads!{
+    /// Key used to authenticate with server
+    Key { key : u128 } = 0,
+    
+    /// Action : enum, character, value, value
+    Action {a : u16, b : u32, c : u32, d : u32 } = 1,
+
+    /// An error message
+    Error { err : u32 } = 65534,
+
+    /// Invalid payload
+    Invalid = 65535
 }

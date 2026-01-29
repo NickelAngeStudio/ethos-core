@@ -25,15 +25,17 @@ SOFTWARE.
 
 /// This macro generate payloads code for bytes serialization. This help adding new payload quickly.
 /// 
-/// TODO: Generate serialize/deserialize test for each payload type.
+/// # Note(s)
+/// Each payload parameter must implement trait [std::default::Default] and #[derive(PartialEq)] for tests purpose.
+#[doc(hidden)]
 #[macro_export]
-macro_rules! write_payloads {
+macro_rules! write_messages_payloads {
     ( $( $(#[$attr:meta])* $payload : ident $({ $($pname : ident : $ptype : ident),* })? = $value:expr),+ ) => {
 
         /// Union of possible message payload
         #[repr(u16)]
-        #[derive(Debug)]
-        pub enum EthosMessagePayload {
+        #[derive(Debug, PartialEq)]
+        pub enum Payload {
             $(
                 $(
                     #[$attr]
@@ -46,9 +48,9 @@ macro_rules! write_payloads {
             )+
         }
 
-        impl Tampon<EthosMessagePayload> for EthosMessagePayload {
+        impl Tampon<Payload> for Payload {
             fn bytes_size(&self) -> usize {
-                EthosMessagePayload::size_of_bytes_from_discriminant(self.discriminant())
+                Payload::size_of_bytes_from_discriminant(self.discriminant())
             }
 
             fn serialize(&self, buffer : &mut [u8]) -> usize {
@@ -56,7 +58,7 @@ macro_rules! write_payloads {
                 // Pack payload to bytes
                 match self {
                     $(
-                        EthosMessagePayload::$payload $({
+                        Payload::$payload $({
                             $(
                                 $pname
                             ),*
@@ -72,7 +74,7 @@ macro_rules! write_payloads {
 
             }
 
-            fn deserialize(buffer : &[u8]) -> (EthosMessagePayload, usize) {
+            fn deserialize(buffer : &[u8]) -> (Payload, usize) {
                 
                 // Read discriminant
                 tampon::deserialize!(buffer, (discriminant):u16);
@@ -81,7 +83,7 @@ macro_rules! write_payloads {
                     $(
                         $value => {
                             $(
-                                tampon::deserialize!(buffer[size_of::<PayloadDiscriminantType>()..], 
+                                tampon::deserialize!(buffer[size_of::<u16>()..], 
                                     $(
                                         ($pname):$ptype
                                     ),* 
@@ -89,7 +91,7 @@ macro_rules! write_payloads {
                             )?
                             
 
-                            let pl = EthosMessagePayload::$payload $({
+                            let pl = Payload::$payload $({
                                 $(
                                     $pname
                                 ),*
@@ -99,26 +101,26 @@ macro_rules! write_payloads {
 
                         },
                     )+
-                    _ =>  (EthosMessagePayload::Invalid, 0) // Invalid payload
+                    _ =>  (Payload::Invalid, 0) // Invalid payload
                 }
 
 
             }
         }
 
-        impl EthosMessagePayload {
+        impl Payload {
             /// Returns a value uniquely identifying the enum variant
             /// 
-            /// Ref
-            /// https://doc.rust-lang.org/std/mem/fn.discriminant.html
-            pub fn discriminant(&self) -> PayloadDiscriminantType {
-                unsafe { *(self as *const Self as *const PayloadDiscriminantType)}
+            /// # See also
+            /// *<https://doc.rust-lang.org/std/mem/fn.discriminant.html>*
+            pub fn discriminant(&self) -> u16 {
+                unsafe { *(self as *const Self as *const u16)}
             }
 
             
             /// Get the packed payload size from the discriminant
-            const fn size_of_bytes_from_discriminant(discriminant : PayloadDiscriminantType) -> usize {
-                size_of::<PayloadDiscriminantType>() + 
+            const fn size_of_bytes_from_discriminant(discriminant : u16) -> usize {
+                size_of::<u16>() + 
                 match discriminant {
                      $(
                         $value => {
@@ -133,6 +135,64 @@ macro_rules! write_payloads {
                     _ => 0
                 }
             }
+        }
+
+        /// This module include tests for each [Payload] enum.
+        /// 
+        /// # Verification(s)
+        /// V1 : [Payload] can be created with default values
+        /// V2 : [Payload::serialize] buffer can write in adequate buffer.
+        /// V3 : [Payload::serialize] size given must equal [Payload::bytes_size]
+        /// V4 : [Payload::deserialize] give back the original payload.
+        /// V5 : [Payload::deserialize] size given must equal [Payload::bytes_size].
+        /// V6 : [Payload::deserialize] should give [Payload::Invalid] for invalid message.
+        /// V7 : [Payload::deserialize] should give size of 0 for invalid message.
+        #[cfg(test)]
+        mod tests {
+            use tampon::Tampon;
+            use super::Payload;
+
+            $(
+                concat_idents::concat_idents!(test_name = payload_, $payload {
+                    #[test]
+                    #[allow(non_snake_case)]
+                    fn test_name() {
+                        // V1 : [Payload] can be created with default values
+                        let payload = super::Payload::$payload $({
+                            $(
+                                $pname : $ptype::default()
+                            ),*
+                        })?;
+
+                        // V2 : [Payload::serialize] buffer write.
+                        let mut buffer = [0u8; size_of::<Payload>()];    // Create big enough buffer
+                        let size = payload.serialize(&mut buffer);
+
+                        // V3 : [Payload::serialize] size given must equal [Payload::bytes_size]
+                        assert_eq!(size, payload.bytes_size());
+
+                        // V4 : [Payload::deserialize] give back the original payload.
+                        let (deserialized, size) = Payload::deserialize(&buffer);
+                        assert_eq!(payload, deserialized);
+
+                        // V5 : [Payload::deserialize] size given must equal [Payload::bytes_size].
+                        assert_eq!(size, payload.bytes_size());
+                    }
+                });
+            )+
+
+
+            #[test]
+            fn payload_deserialize_invalid(){
+                // V6 : [Payload::deserialize] should give [Payload::Invalid] for invalids message.
+                let buffer = [255u8, 254, 123, 254, 255, 124];    // Create unknown type buffer
+                let (deserialized, size) = Payload::deserialize(&buffer);
+                assert_eq!(deserialized, Payload::Invalid, "Wrong deserialized payload type should be Invalid");
+
+                // V7 : [Payload::deserialize] should give size of [u16] for invalid message.
+                assert_eq!(size, 0);
+            }
+
         }
     };
 }

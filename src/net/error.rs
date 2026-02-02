@@ -36,6 +36,6 @@ pub enum Error {
     /// Happens when given buffer is too small to read a message.
     /// 
     /// # Solution
-    /// Use [PACK_BUFFER_SIZE](super::PACK_BUFFER_SIZE) when creating buffer.
+    /// Use PACK_BUFFER_SIZE when creating buffer.
     InvalidBufferSize = 2,
 }

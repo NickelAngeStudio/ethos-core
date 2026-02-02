@@ -32,7 +32,7 @@ SOFTWARE.
 macro_rules! write_messages_payloads {
     ( $( $(#[$attr:meta])* $payload : ident $({ $( $(#[$attr_field:meta])* $pname : ident : $ptype : ident),* })? = $value:expr),+ ) => {
 
-        /// Message content sent between client and server.
+        /// 
         /// 
         /// Payload are meant to be packed when sent and received.
         #[repr(u16)]
@@ -124,7 +124,7 @@ macro_rules! write_messages_payloads {
 
             
             /// Get the packed payload size from the discriminant
-            const fn size_of_bytes_from_discriminant(discriminant : u16) -> usize {
+            pub(crate) const fn size_of_bytes_from_discriminant(discriminant : u16) -> usize {
                 size_of::<u16>() + 
                 match discriminant {
                      $(

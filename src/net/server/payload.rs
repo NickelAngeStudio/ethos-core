@@ -22,42 +22,17 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-//! Communication between client and server.
-#[doc(hidden)]
-pub mod error;
+use tampon::Tampon;
 
-#[doc(hidden)]
-mod macros;
+// IMPORTANT : Add a unique u16 value to each new payload.
+crate::write_messages_payloads!{
 
-pub mod server;
-pub mod client;
+    /// An error message sent by the server to the client.
+    Error {
+        /// Possible error index according to the server error chart. 
+        err : u32 
+    } = 65534,
 
-//#[doc(hidden)]
-//pub mod msg;
-
-// Re-export
-//pub use client::Message as CSMessage;
-//pub use server::Message as SCMessage;
-/// Payload of message sent from client.
-//pub use client::payload::Payload as CSPayload;
-/// Payload of message sent from server.
-//pub use server::payload::Payload as SCPayload;
-pub use error::Error as Error;
-
-
-/// Recommended buffer size (1mb) to read datas from net stream.
-pub const READ_BUFFER_SIZE : usize = 1024*1024;
-
-
-
-/// Ethos TCP port 3847.
-/// 
-/// Note
-/// ('eths' on a phone keyboard)
-pub const TCP_PORT : u16 = 3847;
-
-/// Ethos UDP port 38467.
-/// 
-/// Note
-/// ('ethos' on a phone keyboard)
-pub const UDP_PORT : u16 = 38467;
+    /// Invalid or malformed payload that should be discarded.
+    Invalid = 65535
+}

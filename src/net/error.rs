@@ -38,4 +38,10 @@ pub enum Error {
     /// # Solution
     /// Use PACK_BUFFER_SIZE when creating buffer.
     InvalidBufferSize = 2,
+
+    /// Happens when buffer hasn't received the full message
+    /// 
+    /// # Solution
+    /// Fetch other part of message
+    IncompleteMessage = 3
 }

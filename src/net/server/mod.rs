@@ -32,7 +32,6 @@ SOFTWARE.
 #[doc(hidden)]
 pub mod payload;
 // Re-export
-/// Payload of [Message] sent from server.
 pub use payload::Payload as Payload;
 
 use tampon::Tampon;
@@ -43,7 +42,7 @@ use crate::net::Error;
 const MESSAGE_HEADER_SIZE : usize = size_of::<u16>() + size_of::<u64>();
 
 /// Recommended buffer size for server [Message::pack_bytes].
-pub const PACK_BUFFER_SIZE : usize = size_of::<Message>();
+pub const PACK_BUFFER_SIZE : usize = u16::MAX as usize;
 
 /// Message sent from server to client.
 /// 
@@ -51,7 +50,7 @@ pub const PACK_BUFFER_SIZE : usize = size_of::<Message>();
 #[derive(Debug, PartialEq)]
 pub struct Message {
 
-    /// Packed size of the message including payload.
+    /// Packed size of the message in bytes including payload.
     pub size : u16,
 
     /// Timestamp of the message in milliseconds.
@@ -82,6 +81,15 @@ impl Message {
     /// # Panics
     /// Will panic if buffer is too small to contain the message.
     pub fn pack_bytes(&self, buffer : &mut [u8]) -> usize {
+        // Test buffer size to be PACK_BUFFER_SIZE to prevent panic!
+        #[cfg(debug_assertions)]
+        {
+            if buffer.len() < PACK_BUFFER_SIZE {
+                
+                println!("Warning : Pack buffer size should at least be PACK_BUFFER_SIZE({})!", PACK_BUFFER_SIZE)
+            }
+        }
+
         tampon::serialize!(buffer, (self.size):u16, (self.timestamp):u64, (self.payload):Payload);
         self.size as usize
     }
@@ -92,32 +100,23 @@ impl Message {
     /// [`Result`] which is:
     /// - [`Ok`]: [`Message`] properly extracted from bytes.
     /// - [`Err`]:
-    ///     1. [`Error::InvalidMessage`] for malformed `Message`.
-    ///     2. [`Error::InvalidBufferSize`] for buffer too short to read `Message` entirely.
+    ///     1. [`Error::IncompleteMessage`] when buffer is missing part of the message.
     pub fn from_bytes(bytes : &[u8]) -> Result<Message, Error> {
 
-        // Get discriminant
-        tampon::deserialize!(bytes[MESSAGE_HEADER_SIZE..], (discriminant):u16);
+        // Verify if size can be read (buffer.len()>=type_of message.size)
+        if bytes.len() >= size_of::<u16>() {
+            // Read size
+             tampon::deserialize!(bytes, (size):u16);
 
-        // Get needed size from discriminant
-        let size = Payload::size_of_bytes_from_discriminant(discriminant);
-
-        // Size received should be bigger than 0, else it's invalid.
-        if size > 0 {
-            let size = MESSAGE_HEADER_SIZE + size; // Add header size to total size
-            if bytes.len() > size { // Make sure we can at least read the payload to prevent panic
+            if bytes.len() >= size as usize { // Make sure message is complete
                 tampon::deserialize!(bytes, (timestamp):u64, (payload):Payload);
-
-                if let Payload::Invalid = payload { // Message received is invalid
-                    Err(Error::InvalidMessage)
-                } else {
-                    Ok(Message { size : size as u16, timestamp, payload })
-                }
-            } else {
-                Err(Error::InvalidBufferSize)
+                Ok(Message { size : size as u16, timestamp, payload })
+            } else {    // Message is incomplete
+                Err(Error::IncompleteMessage)
             }
-        } else {    // Message received is invalid
-            Err(Error::InvalidMessage)
+
+        } else {    // Message is incomplete
+            Err(Error::IncompleteMessage)
         }
     }
 

@@ -27,12 +27,16 @@ use tampon::Tampon;
 // IMPORTANT : Add a unique u16 value to each new payload.
 crate::write_messages_payloads!{
 
-    /// An error message sent by the server to the client.
+     /// An error message sent by the server to the client.
     Error {
         /// Possible error index according to the server error chart. 
         err : u32 
     } = 65534,
 
-    /// Invalid or malformed payload that should be discarded.
+
+    /// Invalid or malformed payload that are suspicious.
+    /// 
+    /// Since client to server communications are always handled by
+    /// TCP, no loss or modification of data should have arised.
     Invalid = 65535
 }

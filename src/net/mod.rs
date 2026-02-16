@@ -32,22 +32,14 @@ mod macros;
 pub mod server;
 pub mod client;
 
-//#[doc(hidden)]
-//pub mod msg;
-
 // Re-export
-//pub use client::Message as CSMessage;
-//pub use server::Message as SCMessage;
-/// Payload of message sent from client.
-//pub use client::payload::Payload as CSPayload;
-/// Payload of message sent from server.
-//pub use server::payload::Payload as SCPayload;
 pub use error::Error as Error;
 
+/// Discriminant type size of payload
+const DISCRIMINANT_TYPE_SIZE : usize = size_of::<u16>();
 
 /// Recommended buffer size (1mb) to read datas from net stream.
 pub const READ_BUFFER_SIZE : usize = 1024*1024;
-
 
 
 /// Ethos TCP port 3847.

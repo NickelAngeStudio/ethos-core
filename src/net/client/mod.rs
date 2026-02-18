@@ -29,31 +29,33 @@ SOFTWARE.
 //! Client communications are handled differently than server since their size are fixed and 
 //! known by the server. This prevent oversized tampered client communications.
 
+use crate::net::{CLIENT_MSG_MAX_SIZE, DISCRIMINANT_TYPE_SIZE, Error, PAYLOAD_SIZE_TYPE_SIZE};
+use tampon::Tampon;
+
 #[doc(hidden)]
 pub mod payload;
 // Re-export
 /// Payload of [Message] sent from client.
 pub use payload::Payload as Payload;
 
-/// Size of the message header before the payload
-const MESSAGE_HEADER_SIZE : usize = 0;
-
 /// Recommended buffer size for client [Message::pack_bytes].
-pub const PACK_BUFFER_SIZE : usize = size_of::<Message>();
+pub const PACK_BUFFER_SIZE : usize = CLIENT_MSG_MAX_SIZE;
 
-use crate::net::Error;
-use tampon::Tampon;
+/// Size of the message header (size + discriminant)
+const MESSAGE_HEADER_SIZE : usize = DISCRIMINANT_TYPE_SIZE + PAYLOAD_SIZE_TYPE_SIZE;
 
 /// Message sent from client to server.
 /// 
-/// # Client vs Server
-/// Client message size are fixed and known by the server to prevent manipulation.
-/// Client message don't have timestamp for now since it seem irrelevant.
+/// Client and server message uses different enumeration to prevent
+/// client from sending server messages.
 /// 
-/// # Note(s)
-/// Client message is only a wrapper to it's payload for now.
+/// # Client vs Server
+/// * Client message don't have timestamp for now since it seem irrelevant.
 #[derive(Debug, PartialEq)]
 pub struct Message {
+
+    /// Packed size of the message in bytes including payload.
+    pub size : u16,
 
     /// Message content sent between client and server.
     pub payload : Payload,
@@ -67,7 +69,8 @@ impl Message {
     /// # Returns
     /// `Message` from created from payload.
     pub fn new(payload : Payload) -> Message {
-        Message { payload }
+        let size : u16 = payload.bytes_size() as u16 + PAYLOAD_SIZE_TYPE_SIZE as u16;
+        Message { size, payload }
     }
 
     /// Pack the [Message] in little-endian bytes in a given buffer.
@@ -75,13 +78,45 @@ impl Message {
     /// Make sure to use a buffer with at least [PACK_BUFFER_SIZE] bytes.
     /// 
     /// # Returns
-    /// Size of packed bytes as [usize].
+    /// [`Result`] which is:
+    /// - [`Ok`]: [`usize`] which represent size of bytes packed.
+    ///     1. [`Error::BufferSizeTooSmall`] if buffer is too small to pack message.
+    pub fn pack_bytes(&self, buffer : &mut [u8]) -> Result<usize, Error> {
+
+        // Make sure buffer is big enough to pack
+        if buffer.len() >= self.payload.bytes_size() + PAYLOAD_SIZE_TYPE_SIZE {
+            tampon::serialize!(buffer, size, (self.payload):Payload);
+            Ok(size + PAYLOAD_SIZE_TYPE_SIZE)
+        } else {
+            Err(Error::BufferSizeTooSmall)
+        }
+
+    }
+
+    /// Constant function that read the message size from buffer
     /// 
-    /// # Panics
-    /// Will panic if buffer is too small to contain the message.
-    pub fn pack_bytes(&self, buffer : &mut [u8]) -> usize {
-        tampon::serialize!(buffer, size, (self.payload):Payload);
-        size
+    /// # Returns
+    ///  [`Result`] which is:
+    /// - [`Ok`]: [`usize`] which represent size from bytes.
+    /// - [`Err`]:
+    ///     1. [`Error::IncompleteMessage`] if buffer is too small to read the size.
+    ///     2. [`Error::MessageSizeGreaterThanLimit`] if size > limit
+    pub fn size_from_bytes(bytes : &[u8]) -> Result<usize, Error> {
+        
+         // Make sure we can read size
+        if bytes.len() >= PAYLOAD_SIZE_TYPE_SIZE {
+            // Read size
+            tampon::deserialize!(bytes, (size_from_header):u16);
+
+            if size_from_header <= CLIENT_MSG_MAX_SIZE as u16 {
+                Ok(size_from_header as usize)
+            } else {
+                Err(Error::MessageSizeGreaterThanLimit)
+            }
+        } else {
+            Err(Error::IncompleteMessage)
+        }
+
     }
 
     /// Extract a message from an array of bytes. 
@@ -91,32 +126,45 @@ impl Message {
     /// - [`Ok`]: [`Message`] properly extracted from bytes.
     /// - [`Err`]:
     ///     1. [`Error::InvalidMessage`] for malformed `Message`.
-    ///     2. [`Error::InvalidBufferSize`] for buffer too short to read `Message` entirely.
+    ///     2. [`Error::IncompleteMessage`] for buffer too short to read `Message` entirely.
+    ///     3. [`Error::MessageSizeInvalid`] when given size doesn't match content size.
+    ///     4. [`Error::MessageSizeGreaterThanLimit`] when size exceed limit.
     pub fn from_bytes(bytes : &[u8]) -> Result<Message, Error> {
 
-        // Get discriminant
-        tampon::deserialize!(bytes[MESSAGE_HEADER_SIZE..], (discriminant):u16);
+        // Make sure we can read size and discriminant
+        if bytes.len() >= MESSAGE_HEADER_SIZE {
+            // Read size and discriminant
+            tampon::deserialize!(bytes, (size_from_header):u16, (discriminant):u16);
 
-        // Get needed size from discriminant
-        let size = Payload::size_of_bytes_from_discriminant(discriminant);
+            // Validate discriminant
+            if Payload::is_valid(discriminant) {
+                // Get size of deserialization
+                match tampon::deserialize_size!(bytes[DISCRIMINANT_TYPE_SIZE..], CLIENT_MSG_MAX_SIZE, (payload):Payload) {
+                    Ok(size_from_ds) => {
+                        // Make sure size given matches size of header
+                        if size_from_header == size_from_ds as u16 + PAYLOAD_SIZE_TYPE_SIZE as u16 {
 
-        // Size received should be bigger than 0, else it's invalid.
-        if size > 0 {
-            let size = MESSAGE_HEADER_SIZE + size; // Add header size to total size
-            if bytes.len() > size { // Make sure we can at least read the payload to prevent panic
-                tampon::deserialize!(bytes, (payload):Payload);
+                            // Deserialize and return massage
+                            tampon::deserialize!(bytes, (payload):Payload);
+                            Ok(Message { size : size_from_header,  payload })
 
-                if let Payload::Invalid = payload { // Message received is invalid
-                    Err(Error::InvalidMessage)
-                } else {
-                    Ok(Message { payload })
+                        } else {
+                            Err(Error::MessageSizeInvalid)
+                        }
+                    },
+                    Err(err) => match err {
+                        tampon::TamponError::DeserializeSizeBufferIncomplete =>  Err(Error::IncompleteMessage),
+                        tampon::TamponError::DeserializeSizeGreaterThanMax => Err(Error::MessageSizeGreaterThanLimit),
+                    },
                 }
             } else {
-                Err(Error::InvalidBufferSize)
+                Err(Error::InvalidMessage)
             }
-        } else {    // Message received is invalid
-            Err(Error::InvalidMessage)
+        } else {
+            Err(Error::IncompleteMessage)
         }
+       
+
     }
 
 }
@@ -126,45 +174,87 @@ impl Message {
 /// 
 /// # Verification(s)
 /// V1 : [Message::new] create a new [Message].
-/// V2 : [Message::pack_bytes] pack the [Message] correctly with a buffer of size [super::PACK_BUFFER_SIZE].
-/// V3 : [Message::pack_bytes] should [panic!] when buffer is too small.
-/// V4 : [Message::pack_bytes] then [Message::from_bytes] should contains the same message.
-/// V5 : [Message::from_bytes] must return [`Error::InvalidMessage`] for malformed message.
-/// V6 : [Message::from_bytes] must return [`Error::InvalidBufferSize`] when reading a smaller buffer.
-/// V7 : Stress test  [Message::pack_bytes] / [Message::from_bytes] 1024*1024 times. Should be faster than 1 secs.
+/// V2 : [Message::pack_bytes] pack the [Message] correctly with a buffer of size [super::PACK_BUFFER_SIZE] and returns Ok(size).
+/// V3 : [Message::pack_bytes] returns [`Error::BufferSizeTooSmall`] when buffer is too small.
+/// V4 : [Message::size_from_bytes] returns Ok(usize) from correctly formed message.
+/// V5 : [Message::size_from_bytes] returns [`Error::IncompleteMessage`] from incomplete message.
+/// V6 : [Message::size_from_bytes] returns [`Error::MessageSizeGreaterThanLimit`] if read size is bigger than limit.
+/// V7 : [Message::pack_bytes] then [Message::from_bytes] should contains the same message.
+/// V8 : [Message::from_bytes] must return [`Error::InvalidMessage`] for malformed message.
+/// V9 : [Message::from_bytes] must return [`Error::IncompleteMessage`] for buffer too short to read `Message` entirely.
+/// V10 : [Message::from_bytes] must return [`Error::MessageSizeInvalid`] when given size doesn't match content size.
+/// V11 : [Message::from_bytes] must return [`Error::MessageSizeGreaterThanLimit`] when size exceed limit.
+/// V12 : Stress test  [Message::pack_bytes] / [Message::from_bytes] 1024*1024 times. Should be faster than 1 secs.
 #[cfg(test)]
 mod tests_messages {
-    use std::u128;
+    use std::{u8, u16, u32, u64, u128};
 
     use crate::net::{Error, client::Message, client::PACK_BUFFER_SIZE, client::Payload};
 
+    const P1_VAL : u8 = u8::MAX / 2;
+    const P2_VAL : u16 = u16::MAX / 2;
+    const P3_VAL : u32 = u32::MAX / 2;
+    const P4_VAL : u64 = u64::MAX / 2;
+    const P5_VAL : u128 = u128::MAX / 2;
+
+
+
+    fn create_test_message() -> Message {
+        Message::new(Payload::Test { p1: P1_VAL, p2: P2_VAL, p3: P3_VAL, p4: P4_VAL, p5: P5_VAL })
+    }
 
     #[test]
     fn message_new(){
         // V1 : [Message::new] create a new [Message].
-        Message::new(Payload::Key { key: u128::MAX / 2 });
+        let msg = create_test_message();
+
+        match msg.payload {
+            Payload::Test { p1, p2, p3, p4, p5 } => 
+                assert!(p1 == P1_VAL && p2 == P2_VAL && p3 == P3_VAL && p4 == P4_VAL && p5 == P5_VAL)
+            ,
+            _ => panic!("Wrong payload for test!"),
+        }
     }
 
     #[test]
     fn message_pack_bytes(){
         // V2 : [Message::pack_bytes] pack the [Message] correctly with a buffer of size [super::PACK_BUFFER_SIZE].
         let mut buffer = [0u8; PACK_BUFFER_SIZE];
-        let msg = Message::new(Payload::Key { key: u128::MAX / 2 });
+        let msg = create_test_message();
         msg.pack_bytes(&mut buffer);
     }
 
     #[test]
-    #[should_panic]
-    fn message_pack_bytes_panic(){
-        // V3 : [Message::pack_bytes] should [panic!] when buffer is too small.
-        let mut buffer = [0u8; 2];
-        let msg = Message::new(Payload::Key { key: u128::MAX / 2 });
-        msg.pack_bytes(&mut buffer);
+    fn message_pack_bytes_buffer_too_small(){
+        // V3 : [Message::pack_bytes] returns [`Error::BufferSizeTooSmall`] when buffer is too small.
+        
+        todo!()
+        //let mut buffer = [0u8; 2];
+        //let msg = Message::new(Payload::Key { key: u128::MAX / 2 });
+        //msg.pack_bytes(&mut buffer);
+    }
+
+    #[test]
+    fn message_size_from_bytes_ok(){
+        // V4 : [Message::size_from_bytes] returns Ok(usize) from correctly formed message.
+        todo!()
+    }
+
+    #[test]
+    fn message_size_from_bytes_incomplete(){
+        // V5 : [Message::size_from_bytes] returns [`Error::IncompleteMessage`] from incomplete message.
+        todo!()
+    }
+
+    #[test]
+    fn message_size_from_bytes_greater_than_limit(){
+        // V6 : [Message::size_from_bytes] returns [`Error::MessageSizeGreaterThanLimit`] if read size is bigger than limit.
+        todo!()
     }
 
     #[test]
     fn message_pack_bytes_from_bytes(){
-        // V4 : [Message::pack_bytes] then [Message::from_bytes] should contains the same message.
+        // V7 : [Message::pack_bytes] then [Message::from_bytes] should contains the same message.
         let mut buffer = [0u8; PACK_BUFFER_SIZE];
         let control = Message::new(Payload::Key { key: u128::MAX / 2 });
         control.pack_bytes(&mut buffer);
@@ -177,7 +267,7 @@ mod tests_messages {
 
     #[test]
     fn message_from_bytes_invalid_message(){
-        // V5 : [Message::from_bytes] must return [`Error::InvalidMessage`] for unknown message type.
+        // V8 : [Message::from_bytes] must return [`Error::InvalidMessage`] for unknown message type.
         let bytes = [255u8,252,255,231,214,226,231,222,123,023,123,012];
         if let Err(Error::InvalidMessage) = Message::from_bytes(&bytes){
             // Correct behaviour
@@ -188,16 +278,33 @@ mod tests_messages {
     }
 
     #[test]
-    fn message_from_bytes_invalid_buffer_size(){
+    fn message_from_bytes_incomplete_message(){
+        // V9 : [Message::from_bytes] must return [`Error::IncompleteMessage`] for buffer too short to read `Message` entirely.
+        todo!()
+        
+        /*
         let mut bytes = [0u8; 2];
-        // V6 : [Message::from_bytes] must return [`Error::InvalidBufferSize`] when reading a smaller buffer.
+       
         let error_type = 0u16;
         tampon::serialize!(bytes, (error_type):u16);
-        if let Err(Error::InvalidBufferSize) = Message::from_bytes(&bytes){
+        if let Err(Error::BufferSizeTooSmall) = Message::from_bytes(&bytes){
             // Correct behaviour
         } else {
             panic!("V6 : [Message::from_bytes] must return [`Error::InvalidBufferSize`] when reading a smaller buffer.")
         }
+        */
+    }
+
+    #[test]
+    fn message_from_bytes_size_invalid(){
+        // V10 : [Message::from_bytes] must return [`Error::MessageSizeInvalid`] when given size doesn't match content size.
+        todo!()
+    }
+
+    #[test]
+    fn message_from_bytes_greater_than_limit(){
+        // V11 : [Message::from_bytes] must return [`Error::MessageSizeGreaterThanLimit`] when size exceed limit.
+        todo!()
     }
 
     #[test]

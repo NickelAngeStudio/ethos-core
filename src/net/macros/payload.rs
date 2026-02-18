@@ -26,11 +26,9 @@ SOFTWARE.
 
 /// This macro generate payloads code for bytes serialization. This help adding new payload quickly.
 ///
-/// IMPORTANT
-/// Array MUST be wrapped in a Tampon trait object!
-/// 
 /// # Note(s)
-/// Each payload parameter must implement trait [std::default::Default] and #[derive(PartialEq)] for tests purpose.
+/// * Array MUST be wrapped in a Tampon trait object!
+/// * Each payload parameter must implement trait [std::default::Default] and #[derive(PartialEq)] for tests purpose.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! write_messages_payloads {
@@ -43,7 +41,7 @@ macro_rules! write_messages_payloads {
         $ptype
     };
 
-    ( $( $(#[$attr:meta])* $payload : ident $({ $( $(#[$attr_field:meta])* $pname : ident : $ptype : ident )* })? = $value:expr),+ ) => {
+    ( $( $(#[$attr:meta])* $payload : ident $({ $( $(#[$attr_field:meta])* $pname : ident : $ptype : ident ),* })? = $value:expr),+ ) => {
 
         /// 
         /// 
@@ -68,7 +66,14 @@ macro_rules! write_messages_payloads {
 
         impl Tampon for Payload {
             fn bytes_size(&self) -> usize {
-                Payload::size_of_bytes_from_discriminant(self.discriminant())
+                
+                match self.discriminant() {
+                    $(
+                        $value => tampon::bytes_size!( $( $(($pname):$ptype),*)? ) + $crate::net::DISCRIMINANT_TYPE_SIZE,
+                    )+
+                    _ =>  0 // Invalid payload
+                }
+
             }
 
             fn serialize(&self, buffer : &mut [u8]) -> usize {
@@ -160,7 +165,19 @@ macro_rules! write_messages_payloads {
                 unsafe { *(self as *const Self as *const u16)}
             }
 
-            
+            /// Returns true if given discriminant is valid, false otherwise
+            pub(crate) const fn is_valid(discriminant : u16) -> bool {
+
+                match discriminant {
+                    $(
+                        $value => true,
+                    )+
+                    _ =>  false // Invalid payload
+                }
+
+            }
+
+            /*
             /// Get the packed payload size from the discriminant
             pub(crate) const fn size_of_bytes_from_discriminant(discriminant : u16) -> usize {
                 $crate::net::DISCRIMINANT_TYPE_SIZE + 
@@ -178,6 +195,7 @@ macro_rules! write_messages_payloads {
                     _ => 0
                 }
             }
+            */
         }
 
         /// This module include tests for each [Payload] enum.

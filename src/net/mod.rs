@@ -29,17 +29,26 @@ pub mod error;
 #[doc(hidden)]
 mod macros;
 
+#[doc(hidden)]
 pub mod server;
+
 pub mod client;
 
 // Re-export
 pub use error::Error as Error;
+pub use server::Message as ServerMessage;
+
+/// Size of type of size of payload
+const PAYLOAD_SIZE_TYPE_SIZE : usize = size_of::<u16>();
 
 /// Discriminant type size of payload
 const DISCRIMINANT_TYPE_SIZE : usize = size_of::<u16>();
 
 /// Recommended buffer size (1mb) to read datas from net stream.
 pub const READ_BUFFER_SIZE : usize = 1024*1024;
+
+/// Maximum permitted client message in bytes (1ko).
+pub const CLIENT_MSG_MAX_SIZE : usize = 1024;
 
 
 /// Ethos TCP port 3847.

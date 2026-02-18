@@ -28,20 +28,19 @@ SOFTWARE.
 #[repr(u16)]
 pub enum Error {
     /// Server or client received an invalid / malformed message.
-    /// 
-    /// # Solution
-    /// Invalid / Malformed message should be dropped.
     InvalidMessage = 1,
 
     /// Happens when given buffer is too small to read a message.
-    /// 
-    /// # Solution
-    /// Use PACK_BUFFER_SIZE when creating buffer.
-    InvalidBufferSize = 2,
+    BufferSizeTooSmall = 2,
 
     /// Happens when buffer hasn't received the full message
-    /// 
-    /// # Solution
-    /// Fetch other part of message
-    IncompleteMessage = 3
+    IncompleteMessage = 3,
+
+    /// Happens when unpacked size of message != size in header
+    MessageSizeInvalid = 4,
+
+    /// Happens when unpacking a message reach the limit
+    MessageSizeGreaterThanLimit = 5
+
+
 }

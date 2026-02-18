@@ -37,6 +37,9 @@ crate::write_messages_payloads!{
     } = 0,
 
 
+    /// Payload used only for unit tests.
+    Test { p1 : u8, p2 : u16,  p3 : u32, p4 : u64, p5: u128} = 65534, 
+
     /// Invalid or malformed payload that are suspicious.
     /// 
     /// Since client to server communications are always handled by

@@ -22,10 +22,31 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+
 use tampon::Tampon;
+
+use crate::write_messages_struct;
+
+const SERVER_MAX_SIZE : usize = u16::MAX as usize;
+
+write_messages_struct!{ SERVER_MSG_HEADER, SERVER_MSG_TAIL, SERVER_MAX_SIZE,
+        /// Message sent from server to client.
+        ServerMessage < ServerPayload >,
+            /// Timestamp of the message in milliseconds when it happened on server.
+            /// 
+            /// - Use [Instant](std::time::Instant) and [Duration](std::time::Duration) value to fill.
+            /// - DO NOT USE [std::time::SystemTime] since it is not monotonic.
+            pub timestamp : u64
+
+        
+    }
 
 // IMPORTANT : Add a unique u16 value to each new payload.
 crate::write_messages_payloads!{
+    /// Payload sent from server to client.
+    /// 
+    /// Payload are packed for smaller transfer size.
+    ServerPayload,
 
      /// An error message sent by the server to the client.
     Error {

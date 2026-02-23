@@ -25,8 +25,28 @@ SOFTWARE.
 
 use tampon::Tampon;
 
+use crate::{net::CLIENT_MSG_MAX_SIZE, write_messages_struct};
+
+// Create client message structure.
+write_messages_struct!{ CLIENT_MSG_HEADER, CLIENT_MSG_TAIL, CLIENT_MSG_MAX_SIZE,
+    /// Message sent from client to server.
+    /// 
+    /// Client and server message uses different enumeration to prevent
+    /// client from sending / broadcasting server messages.
+    /// 
+    /// [`ClientMessage`] doesn't contain any timestamp for smaller package since client time depends on lot of factors
+    /// whilst server time is absolute.
+    ClientMessage < ClientPayload >
+
+}
+
+
 // IMPORTANT : Add a unique u16 value to each new payload.
-crate::write_messages_payloads!{
+crate::write_messages_payloads!{ 
+    /// Payload sent from client to server.
+    /// 
+    /// Payload are packed for smaller transfer size.
+    ClientPayload,
     /// Key used to authenticate with server
     Key { 
         /// Secret key shared between client and server to establish connection. 
@@ -36,9 +56,6 @@ crate::write_messages_payloads!{
         key : u128 
     } = 0,
 
-
-    /// Payload used only for unit tests.
-    Test { p1 : u8, p2 : u16,  p3 : u32, p4 : u64, p5: u128} = 65534, 
 
     /// Invalid or malformed payload that are suspicious.
     /// 

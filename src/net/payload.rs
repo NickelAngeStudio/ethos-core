@@ -33,22 +33,12 @@ SOFTWARE.
 #[macro_export]
 macro_rules! write_messages_payloads {
 
-    (@PTYPE $ptype : ident) => {
-        $ptype
-    };
+    ( $(#[$comment:meta])* $payload_name : ident, $( $(#[$attr:meta])* $payload : ident $({ $( $(#[$attr_field:meta])* $pname : ident : $ptype : ident ),* })? = $value:expr),+ ) => {
 
-    (@PTYPE $ptype : ident < $pt2 : ident >) => {
-        $ptype
-    };
-
-    ( $( $(#[$attr:meta])* $payload : ident $({ $( $(#[$attr_field:meta])* $pname : ident : $ptype : ident ),* })? = $value:expr),+ ) => {
-
-        /// 
-        /// 
-        /// Payload are meant to be packed when sent and received.
+        $( #[$comment] )*
         #[repr(u16)]
         #[derive(Debug, PartialEq)]
-        pub enum Payload {
+        pub enum $payload_name {
             $(
                 $(
                     #[$attr]
@@ -64,7 +54,7 @@ macro_rules! write_messages_payloads {
             )+
         }
 
-        impl Tampon for Payload {
+        impl Tampon for $payload_name {
             fn bytes_size(&self) -> usize {
                 
                 match self.discriminant() {
@@ -81,7 +71,7 @@ macro_rules! write_messages_payloads {
                 // Pack payload to bytes
                 match self {
                     $(
-                        Payload::$payload $({
+                        $payload_name::$payload $({
                             $(
                                 $pname
                             ),*
@@ -107,7 +97,7 @@ macro_rules! write_messages_payloads {
                         $value => {
 
                             tampon::deserialize!(buffer[$crate::net::DISCRIMINANT_TYPE_SIZE..], _bytes_size $(, $(($pname):$ptype),*)?);
-                            ( Payload::$payload $({
+                            ( $payload_name::$payload $({
                                 $(
                                     $pname
                                 ),*
@@ -115,7 +105,7 @@ macro_rules! write_messages_payloads {
 
                         },
                     )+
-                    _ =>  (Payload::Invalid, 0) // Invalid payload
+                    _ =>  ($payload_name::Invalid, 0) // Invalid payload
                 }
 
 
@@ -156,7 +146,7 @@ macro_rules! write_messages_payloads {
             }
         }
 
-        impl Payload {
+        impl $payload_name {
             /// Returns a value uniquely identifying the enum variant
             /// 
             /// # See also
@@ -177,25 +167,6 @@ macro_rules! write_messages_payloads {
 
             }
 
-            /*
-            /// Get the packed payload size from the discriminant
-            pub(crate) const fn size_of_bytes_from_discriminant(discriminant : u16) -> usize {
-                $crate::net::DISCRIMINANT_TYPE_SIZE + 
-                match discriminant {
-                     $(
-                        $value => {
-                            $(
-                                $(
-                                    size_of::<$ptype>() +
-                                )*
-                            )?
-                            0
-                        },
-                    )+
-                    _ => 0
-                }
-            }
-            */
         }
 
         /// This module include tests for each [Payload] enum.
@@ -214,7 +185,7 @@ macro_rules! write_messages_payloads {
         #[cfg(test)]
         mod tests {
             use tampon::Tampon;
-            use super::Payload;
+            use super::$payload_name;
 
             $(
                 concat_idents::concat_idents!(test_name = payload_, $payload {
@@ -222,21 +193,21 @@ macro_rules! write_messages_payloads {
                     #[allow(non_snake_case)]
                     fn test_name() {
                         // V1 : [Payload] can be created with default values
-                        let payload = super::Payload::$payload $({
+                        let payload = super::$payload_name::$payload $({
                             $(
                                 $pname : $ptype::default()
                             ),*
                         })?;
 
                         // V2 : [Payload::serialize] buffer write.
-                        let mut buffer = [0u8; size_of::<Payload>()];    // Create big enough buffer
+                        let mut buffer = [0u8; size_of::<$payload_name>()];    // Create big enough buffer
                         let size = payload.serialize(&mut buffer);
 
                         // V3 : [Payload::serialize] size given must equal [Payload::bytes_size]
                         assert_eq!(size, payload.bytes_size());
 
                         // V4 : [Payload::deserialize] give back the original payload.
-                        let (deserialized, des_size) = Payload::deserialize(&buffer);
+                        let (deserialized, des_size) = $payload_name::deserialize(&buffer);
                         assert_eq!(payload, deserialized);
 
                         // V5 : [Payload::deserialize] size given must equal [Payload::bytes_size].
@@ -244,19 +215,19 @@ macro_rules! write_messages_payloads {
 
 
                         // V8 : [Payload::deserialize_size] size given must equal [Payload::bytes_size]
-                        match Payload::deserialize_size(&buffer, 0) {
+                        match $payload_name::deserialize_size(&buffer, 0) {
                             Ok(pl_size) => assert_eq!(des_size, pl_size),
                             Err(_) => panic!("V8 Should not be an error"),
                         }
 
                         // V9 : [Payload::deserialize_size] should returns Err(DeserializeSizeBufferIncomplete)  on small buffer.
-                        match Payload::deserialize_size(&buffer[0..1], 0) {
+                        match $payload_name::deserialize_size(&buffer[0..1], 0) {
                             Ok(_) => panic!("V9 Should be an error"),
                             Err(err) => assert_eq!(err, tampon::TamponError::DeserializeSizeBufferIncomplete),
                         }
 
                         //  V10 : [Payload::deserialize_size] should returns Err(DeserializeSizeGreaterThanMax) on small max_size.
-                        match Payload::deserialize_size(&buffer, 1) {
+                        match $payload_name::deserialize_size(&buffer, 1) {
                             Ok(_) => panic!("V10 Should be an error"),
                             Err(err) => assert_eq!(err, tampon::TamponError::DeserializeSizeGreaterThanMax),
                         }
@@ -271,8 +242,8 @@ macro_rules! write_messages_payloads {
             fn payload_deserialize_invalid(){
                 // V6 : [Payload::deserialize] should give [Payload::Invalid] for invalids message.
                 let buffer = [255u8, 254, 123, 254, 255, 124];    // Create unknown type buffer
-                let (deserialized, size) = Payload::deserialize(&buffer);
-                assert_eq!(deserialized, Payload::Invalid, "Wrong deserialized payload type should be Invalid");
+                let (deserialized, size) = $payload_name::deserialize(&buffer);
+                assert_eq!(deserialized, $payload_name::Invalid, "Wrong deserialized payload type should be Invalid");
 
                 // V7 : [Payload::deserialize] should give size of [u16] for invalid message.
                 assert_eq!(size, 0);

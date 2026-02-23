@@ -27,16 +27,23 @@ SOFTWARE.
 pub mod error;
 
 #[doc(hidden)]
-mod macros;
+mod message;
+
+#[doc(hidden)]
+mod payload;
 
 #[doc(hidden)]
 pub mod server;
 
+#[doc(hidden)]
 pub mod client;
 
 // Re-export
 pub use error::Error as Error;
-pub use server::Message as ServerMessage;
+pub use server::ServerMessage as ServerMessage;
+pub use server::ServerPayload as ServerPayload;
+pub use client::ClientMessage as ClientMessage;
+pub use client::ClientPayload as ClientPayload;
 
 /// Size of type of size of payload
 const PAYLOAD_SIZE_TYPE_SIZE : usize = size_of::<u16>();

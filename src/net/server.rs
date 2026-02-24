@@ -29,7 +29,7 @@ use crate::write_messages_struct;
 
 const SERVER_MAX_SIZE : usize = u16::MAX as usize;
 
-write_messages_struct!{ SERVER_MSG_HEADER, SERVER_MSG_TAIL, SERVER_MAX_SIZE,
+write_messages_struct!{ SERVER_MAX_SIZE,
         /// Message sent from server to client.
         ServerMessage < ServerPayload >,
             /// Timestamp of the message in milliseconds when it happened on server.

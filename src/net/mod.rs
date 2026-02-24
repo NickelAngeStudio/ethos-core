@@ -46,7 +46,7 @@ pub use client::ClientMessage as ClientMessage;
 pub use client::ClientPayload as ClientPayload;
 
 /// Size of type of size of payload
-const PAYLOAD_SIZE_TYPE_SIZE : usize = size_of::<u16>();
+pub const MESSAGE_SIZE_TYPE_SIZE : usize = size_of::<u16>();
 
 /// Discriminant type size of payload
 const DISCRIMINANT_TYPE_SIZE : usize = size_of::<u16>();

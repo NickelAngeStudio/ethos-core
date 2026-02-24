@@ -8,12 +8,12 @@
 #[macro_export]
 macro_rules! write_messages_struct {
 
-     ( $cons_header:ident, $cons_tail:ident, $max_size:expr, $(#[$comment:meta])* $struct_name:ident <$payload_type:ident> $(, $(#[$ex_attr:meta])* $ex_vis : vis $ex_pname : ident : $ex_ptype : ident )* ) => {
+     ( $max_size:expr, $(#[$comment:meta])* $struct_name:ident <$payload_type:ident> $(, $(#[$ex_attr:meta])* $ex_vis : vis $ex_pname : ident : $ex_ptype : ident )* ) => {
         
         // Size of the message header (size + discriminant)
-        const $cons_header : usize = $crate::net::DISCRIMINANT_TYPE_SIZE + $crate::net::PAYLOAD_SIZE_TYPE_SIZE;
+        //const $cons_header : usize = $crate::net::DISCRIMINANT_TYPE_SIZE;
         // Size of tail
-        const $cons_tail : usize = 0 $(+ size_of::<$ex_ptype>())*;
+        //const $cons_tail : usize = (0 $(+ size_of::<$ex_ptype>())*);
         
 
         $( #[$comment] )*
@@ -44,7 +44,7 @@ macro_rules! write_messages_struct {
             /// # Returns
             ///  [`Message`](Self) created.
             pub fn new($($ex_pname  : $ex_ptype,)* payload : $payload_type ) -> $struct_name {
-                let size : u16 = payload.bytes_size() as u16 + $crate::net::PAYLOAD_SIZE_TYPE_SIZE as u16 + $cons_tail as u16;
+                let size : u16 = payload.bytes_size() as u16 + (0 $(+ size_of::<$ex_ptype>())*) as u16;
                 $struct_name { size, $($ex_pname,)* payload  }
             }
 
@@ -60,17 +60,28 @@ macro_rules! write_messages_struct {
             pub fn pack_bytes(&self, buffer : &mut [u8]) -> Result<usize, $crate::net::Error> {
 
                 // Make sure buffer is big enough to pack
-                if buffer.len() >= self.payload.bytes_size() + $crate::net::PAYLOAD_SIZE_TYPE_SIZE + $cons_tail {
+                if buffer.len() >= self.payload.bytes_size() + $crate::net::MESSAGE_SIZE_TYPE_SIZE + (0 $(+ size_of::<$ex_ptype>())*) {
                     tampon::serialize!(buffer, size, (self.size):u16, (self.payload):$payload_type $(,(self.$ex_pname):$ex_ptype)*);
-                    Ok(size + $crate::net::PAYLOAD_SIZE_TYPE_SIZE)
+                    Ok(size) 
                 } else {
                     Err($crate::net::Error::BufferSizeTooSmall)
                 }
 
             }
 
+            /// Get the size from bytes.
+            /// 
+            /// # Returns
+            /// The size extracted from bytes as u16.
+            pub fn size_from_bytes(bytes : &[u8; $crate::net::MESSAGE_SIZE_TYPE_SIZE]) -> u16 {
+                tampon::deserialize!(bytes, (size_from_header):u16);
+                size_from_header
+            }
 
-            /// Extract a [`Message`](Self) from an array of bytes. 
+
+            /// Extract a [`Message`](Self) from an array of bytes.
+            /// 
+            /// The buffer length must exactly match the content length. (use size) 
             /// 
             /// # Returns
             /// [`Result`] which is:
@@ -82,29 +93,28 @@ macro_rules! write_messages_struct {
             ///     4. [`Error::MessageSizeGreaterThanLimit`](crate::net::Error::MessageSizeGreaterThanLimit) when size exceed limit.
             pub fn from_bytes(bytes : &[u8]) -> Result<$struct_name, $crate::net::Error> {
 
-                // Make sure we can read size and discriminant
-                if bytes.len() >= $cons_header {
-                    // Read size and discriminant
-                    tampon::deserialize!(bytes, (size_from_header):u16, (discriminant):u16);
+                // Make sure we can read discriminant
+                if bytes.len() >= $crate::net::DISCRIMINANT_TYPE_SIZE {
+                    // Read discriminant
+                    tampon::deserialize!(bytes, (discriminant):u16);
 
                     // Validate discriminant
                     if <$payload_type>::is_valid(discriminant) {
                         // Get size of deserialization
-                        match tampon::deserialize_size!(bytes[$cons_header..], $max_size, 
-                            (payload):$payload_type $(,($ex_pname):$ex_ptype)*) {
+                        match tampon::deserialize_size!(bytes, $max_size, (payload):$payload_type $(,($ex_pname):$ex_ptype)*) {
                             Ok(size_from_ds) => {
-                                // Make sure size given matches size of header
-                                if size_from_header == size_from_ds as u16 + $crate::net::PAYLOAD_SIZE_TYPE_SIZE as u16 {
+                                // Make sure size given matches size of bytes
+                                if bytes.len() == size_from_ds  {
                                     // Deserialize and return massage
-                                    tampon::deserialize!(bytes[$crate::net::PAYLOAD_SIZE_TYPE_SIZE..], (payload):$payload_type $(,($ex_pname):$ex_ptype)*);
-                                    Ok($struct_name { size : size_from_header,  payload $(,$ex_pname)* })
+                                    tampon::deserialize!(bytes, (payload):$payload_type $(,($ex_pname):$ex_ptype)*);
+                                    Ok($struct_name { size : size_from_ds as u16,  payload $(,$ex_pname)* })
 
                                 } else {
                                     Err($crate::net::Error::MessageSizeInvalid)
                                 }
                             },
                             Err(err) => match err {
-                                tampon::TamponError::DeserializeSizeBufferIncomplete =>  Err($crate::net::Error::IncompleteMessage),
+                                tampon::TamponError::DeserializeSizeBufferIncomplete => Err($crate::net::Error::IncompleteMessage),
                                 tampon::TamponError::DeserializeSizeGreaterThanMax => Err($crate::net::Error::MessageSizeGreaterThanLimit),
                             },
                         }
@@ -132,11 +142,12 @@ macro_rules! write_messages_struct {
 /// V6 : [Message::from_bytes] must return [`Error::IncompleteMessage`] for buffer too short to read `Message` entirely.
 /// V7 : [Message::from_bytes] must return [`Error::MessageSizeInvalid`] when given size doesn't match content size.
 /// V8 : [Message::from_bytes] must return [`Error::MessageSizeGreaterThanLimit`] when size exceed limit.
+/// V9 : [Message::size_from_bytes] return correct size.
 #[cfg(test)]
 mod tests_messages {
     use std::{u8, u16, u32, u64, u128};
     use tampon::{Tampon, deserialize, deserialize_size, serialize};
-    use crate::net::Error;
+    use crate::net::{Error, MESSAGE_SIZE_TYPE_SIZE};
 
     const DISC_VAL : u16 = u16::MAX / 2 + 2;
     const P1_VAL : u8 = u8::MAX / 2;
@@ -171,9 +182,9 @@ mod tests_messages {
         // V1 : [Message::new] create a new [Message].
         let (msg1, msg2, msg3) = generate_test_msgs();
 
-        assert_eq!(msg1.size as usize,  SIZE_VAL + crate::net::DISCRIMINANT_TYPE_SIZE, "msg1 size invalid!");
-        assert_eq!(msg2.size as usize,  SIZE_VAL + crate::net::DISCRIMINANT_TYPE_SIZE + SIZE_MSG2_VAL, "msg2 size invalid!");
-        assert_eq!(msg3.size as usize,  SIZE_VAL + crate::net::DISCRIMINANT_TYPE_SIZE + SIZE_MSG3_VAL, "msg3 size invalid!");
+        assert_eq!(msg1.size as usize,  SIZE_VAL, "msg1 size invalid!");
+        assert_eq!(msg2.size as usize,  SIZE_VAL + SIZE_MSG2_VAL, "msg2 size invalid!");
+        assert_eq!(msg3.size as usize,  SIZE_VAL + SIZE_MSG3_VAL, "msg3 size invalid!");
 
         assert_payload(&msg1.payload);
         assert_payload(&msg2.payload);
@@ -244,7 +255,7 @@ mod tests_messages {
         let (ctrl_msg1, ctrl_msg2, ctrl_msg3) = generate_test_msgs(); 
 
         match ctrl_msg1.pack_bytes(&mut buffer) {
-            Ok(_) => match MessageTestNoExtra::from_bytes(&buffer) {
+            Ok(size) => match MessageTestNoExtra::from_bytes(&buffer[MESSAGE_SIZE_TYPE_SIZE..size + MESSAGE_SIZE_TYPE_SIZE]) {
                     Ok(msg) => assert_eq!(ctrl_msg1, msg),
                     Err(err) => panic!("ctrl_msg1.from_bytes() should not Err({:?})!", err),
             },
@@ -252,7 +263,7 @@ mod tests_messages {
         }
 
         match ctrl_msg2.pack_bytes(&mut buffer) {
-            Ok(_) => match MessageTestOneExtra::from_bytes(&buffer) {
+            Ok(size) => match MessageTestOneExtra::from_bytes(&buffer[MESSAGE_SIZE_TYPE_SIZE..size + MESSAGE_SIZE_TYPE_SIZE]) {
                     Ok(msg) => assert_eq!(ctrl_msg2, msg),
                     Err(err) => panic!("ctrl_msg2.from_bytes() should not Err({:?})!", err),
             },
@@ -260,7 +271,7 @@ mod tests_messages {
         }
 
         match ctrl_msg3.pack_bytes(&mut buffer) {
-            Ok(_) => match MessageTestMultiExtra::from_bytes(&buffer) {
+            Ok(size) => match MessageTestMultiExtra::from_bytes(&buffer[MESSAGE_SIZE_TYPE_SIZE..size + MESSAGE_SIZE_TYPE_SIZE]) {
                     Ok(msg) => assert_eq!(ctrl_msg3, msg),
                     Err(err) => panic!("ctrl_msg3.from_bytes() should not Err({:?})!", err),
             },
@@ -382,6 +393,18 @@ mod tests_messages {
 
     }
 
+    #[test]
+    fn v9_size_from_bytes(){
+        // V9 : [Message::size_from_bytes] return correct size.
+        let aru16 = [0u16, u16::MAX/2,u16::MAX];
+
+        for u in aru16 {
+            let buf = u.to_le_bytes();
+            assert_eq!(u,MessageTestNoExtra::size_from_bytes(&buf));
+        }
+
+    }
+
     #[derive(Debug, PartialEq)]
     pub struct  PayloadTest {
         discriminant : u16,
@@ -453,13 +476,13 @@ mod tests_messages {
     }
 
     // No extra
-    write_messages_struct!{ MSG1_HEADER, MSG1_TAIL, PACK_BUFFER_SIZE,
+    write_messages_struct!{ PACK_BUFFER_SIZE,
         MessageTestNoExtra < PayloadTest >
         
     }
 
     // One extra
-    write_messages_struct!{ MSG2_HEADER, MSG2_TAIL, PACK_BUFFER_SIZE,
+    write_messages_struct!{ PACK_BUFFER_SIZE,
         MessageTestOneExtra < PayloadTest >,
             pub timestamp : u64
 
@@ -467,7 +490,7 @@ mod tests_messages {
     }
 
     // Multiple extra
-    write_messages_struct!{ MSG3_HEADER, MSG3_TAIL, PACK_BUFFER_SIZE,
+    write_messages_struct!{ PACK_BUFFER_SIZE,
         MessageTestMultiExtra < PayloadTest >,
             pub timestamp : u64,
             pub ex1:u8,
@@ -478,7 +501,7 @@ mod tests_messages {
     }
 
     // One extra
-    write_messages_struct!{ INVALID_MSG_HEADER, INVALID_MSG_TAIL, PACK_BUFFER_SIZE,
+    write_messages_struct!{ PACK_BUFFER_SIZE,
         MessageTestInvalid < PayloadTestInvalid >,
             pub timestamp : u64
 
@@ -486,7 +509,7 @@ mod tests_messages {
     }
 
     // One extra
-    write_messages_struct!{ SMALL_MSG_HEADER, SMALL_MSG_TAIL, 2,
+    write_messages_struct!{ 2,
         MessageTestSmallMax < PayloadTest >,
             pub timestamp : u64
 

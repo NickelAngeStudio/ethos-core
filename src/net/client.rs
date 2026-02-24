@@ -28,7 +28,7 @@ use tampon::Tampon;
 use crate::{net::CLIENT_MSG_MAX_SIZE, write_messages_struct};
 
 // Create client message structure.
-write_messages_struct!{ CLIENT_MSG_HEADER, CLIENT_MSG_TAIL, CLIENT_MSG_MAX_SIZE,
+write_messages_struct!{ CLIENT_MSG_MAX_SIZE,
     /// Message sent from client to server.
     /// 
     /// Client and server message uses different enumeration to prevent
@@ -63,3 +63,29 @@ crate::write_messages_payloads!{
     /// TCP, no loss or modification of data should have arised.
     Invalid = 65535
 }
+
+/*
+#[cfg(test)]
+mod tests_payloads {
+    use crate::net::{ClientMessage, ClientPayload, MESSAGE_SIZE_TYPE_SIZE, READ_BUFFER_SIZE};
+
+
+    #[test]
+    fn in_out() {
+        let msg = ClientMessage::new(ClientPayload::Key { key: 123 });
+        let mut msg_buffer =  &mut [0 as u8; READ_BUFFER_SIZE];
+        let mut size_buffer =  &mut [0 as u8; MESSAGE_SIZE_TYPE_SIZE];
+
+        match msg.pack_bytes(buffer){
+            Ok(_size) => {
+                match ClientMessage::from_bytes(&buffer[MESSAGE_SIZE_TYPE_SIZE..MESSAGE_SIZE_TYPE_SIZE+_size]){
+                    Ok(msg) => println!("Work!"),
+                    Err(err) => println!("Err={:?}", err),
+                }
+            },
+            Err(_) => todo!(),
+        }
+    }
+
+}
+    */

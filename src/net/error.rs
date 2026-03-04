@@ -24,7 +24,7 @@ SOFTWARE.
 
 
 /// Possible communication errors.
-#[derive(Debug,PartialEq)]
+#[derive(Debug,PartialEq,Clone)]
 #[repr(u16)]
 pub enum Error {
     /// Server or client received an invalid / malformed message.

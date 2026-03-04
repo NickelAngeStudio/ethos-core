@@ -37,7 +37,7 @@ macro_rules! write_messages_payloads {
 
         $( #[$comment] )*
         #[repr(u16)]
-        #[derive(Debug, PartialEq)]
+        #[derive(Debug, PartialEq, Clone)]
         pub enum $payload_name {
             $(
                 $(

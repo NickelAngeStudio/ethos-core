@@ -51,8 +51,8 @@ pub const MESSAGE_SIZE_TYPE_SIZE : usize = size_of::<u16>();
 /// Discriminant type size of payload
 const DISCRIMINANT_TYPE_SIZE : usize = size_of::<u16>();
 
-/// Recommended buffer size (1mb) to read datas from net stream.
-pub const READ_BUFFER_SIZE : usize = 1024*1024;
+/// Recommended buffer size (1mb) to read datas from server.
+pub const SERVER_MSG_BUFFER_SIZE : usize = 1024*1024;
 
 /// Maximum permitted client message in bytes (1ko).
 pub const CLIENT_MSG_MAX_SIZE : usize = 1024;

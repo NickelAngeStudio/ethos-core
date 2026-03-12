@@ -40,22 +40,16 @@ write_messages_struct!{ CLIENT_MSG_MAX_SIZE,
 
 }
 
-
 // IMPORTANT : Add a unique u16 value to each new payload.
 crate::write_messages_payloads!{ 
     /// Payload sent from client to server.
     /// 
     /// Payload are packed for smaller transfer size.
     ClientPayload,
-    /// Key used to authenticate with server
-    Key { 
-        /// Secret key shared between client and server to establish connection. 
-        /// 
-        /// # Notes
-        /// Server will ban client for 15m upon providing incorrect key. 
-        key : u128 
-    } = 0,
-
+   
+   
+   /// Test payload used for various unit test case
+   Test { p16 : u16, p32 : u32 } = 65534,
 
     /// Invalid or malformed payload that are suspicious.
     /// 
@@ -63,29 +57,3 @@ crate::write_messages_payloads!{
     /// TCP, no loss or modification of data should have arised.
     Invalid = 65535
 }
-
-/*
-#[cfg(test)]
-mod tests_payloads {
-    use crate::net::{ClientMessage, ClientPayload, MESSAGE_SIZE_TYPE_SIZE, READ_BUFFER_SIZE};
-
-
-    #[test]
-    fn in_out() {
-        let msg = ClientMessage::new(ClientPayload::Key { key: 123 });
-        let mut msg_buffer =  &mut [0 as u8; READ_BUFFER_SIZE];
-        let mut size_buffer =  &mut [0 as u8; MESSAGE_SIZE_TYPE_SIZE];
-
-        match msg.pack_bytes(buffer){
-            Ok(_size) => {
-                match ClientMessage::from_bytes(&buffer[MESSAGE_SIZE_TYPE_SIZE..MESSAGE_SIZE_TYPE_SIZE+_size]){
-                    Ok(msg) => println!("Work!"),
-                    Err(err) => println!("Err={:?}", err),
-                }
-            },
-            Err(_) => todo!(),
-        }
-    }
-
-}
-    */

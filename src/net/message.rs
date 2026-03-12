@@ -8,13 +8,7 @@
 #[macro_export]
 macro_rules! write_messages_struct {
 
-     ( $max_size:expr, $(#[$comment:meta])* $struct_name:ident <$payload_type:ident> $(, $(#[$ex_attr:meta])* $ex_vis : vis $ex_pname : ident : $ex_ptype : ident )* ) => {
-        
-        // Size of the message header (size + discriminant)
-        //const $cons_header : usize = $crate::net::DISCRIMINANT_TYPE_SIZE;
-        // Size of tail
-        //const $cons_tail : usize = (0 $(+ size_of::<$ex_ptype>())*);
-        
+     ( $max_size:expr, $(#[$comment:meta])* $struct_name:ident <$payload_type:ident> $(, $(#[$ex_attr:meta])* $ex_vis : vis $ex_pname : ident : $ex_ptype : ident )* ) => {       
 
         $( #[$comment] )*
         #[derive(Debug, PartialEq)]

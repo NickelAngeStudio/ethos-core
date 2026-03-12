@@ -10,3 +10,4 @@ repository = "https://github.com/NickelAngeStudio/ethos-core"
 [dependencies]
 tampon = "1.1.4"
 concat-idents = "1.1.5"
+nscfg = "1.0.0"

@@ -52,8 +52,10 @@ crate::write_messages_payloads!{
     Error {
         /// Possible error index according to the server error chart. 
         err : u32 
-    } = 65534,
+    } = 65533,
 
+    /// Test payload used for various unit test case
+   Test { p16 : u16, p32 : u32 } = 65534,
 
     /// Invalid or malformed payload that are suspicious.
     /// 

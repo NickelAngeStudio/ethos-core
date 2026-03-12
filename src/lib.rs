@@ -1,3 +1,4 @@
+#![doc(html_logo_url = "https://avatars.githubusercontent.com/u/67743099?v=4")]
 /* 
 Copyright (c) 2026  NickelAnge.Studio 
 Email               mathieu.grenier@nickelange.studio
